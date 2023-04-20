@@ -34,7 +34,7 @@ Hscv_diag = Hscv.diag(x=X, Hstart = hpi.est, optim.fun = "nlm")
 
 
 # TIDY KDE + plot
-fhat = st_kde(x = df_geo, H = H, binned = FALSE)
+fhat = st_kde(x = df_geo, H = H, binned = FALSE, xmin = c(extnyc[1], extnyc[3]), xmax = c(extnyc[2], extnyc[4]))
 
 gs1 <- ggplot(fhat) + geom_sf(data=df_geo, fill=NA, alpha = 0.05) +
   ggthemes::theme_map()
@@ -50,33 +50,40 @@ contour_subset = st_get_contour(fhat, c(25, 50, 75, 99))
 st_write(contour_subset, "./L1/subsidized_kde_contours.shp", delete_layer = TRUE)
 
 # write to raster as well
-r = raster(list(x=fhat$tidy_ks$ks[[1]]$eval.points[[2]], y = fhat$tidy_ks$ks[[1]]$eval.points[[2]], z = fhat$tidy_ks$ks[[1]]$estimate))
+
+im.kde = image2Grid(list(x=fhat$tidy_ks$ks[[1]]$eval.points[[1]], y = fhat$tidy_ks$ks[[1]]$eval.points[[2]], z = fhat$tidy_ks$ks[[1]]$estimate))
+r <- raster(im.kde)
+plot(r)
 # set crs
 crs(r) <- CRS('+init=EPSG:6347')
 
-ref_r = raster(x = "./L1/tree_counts_per_ha.tiff")
-# this is our reference raster (1 ha resolution)
-values(ref_r)[!is.na(values(ref_r))] = 1
 
-r = setExtent(x = r, ext = ref_r@extent)
-
-
-# Resample so same resolution as tree data
-x = resample(x = r, y = ref_r, method = "bilinear")
-
-plot(x)
-raster::compareRaster(x, ref_r)
 
 # crop it by nyc shape
 nyc = st_read("./Borough Boundaries/", layer = "geo_export_da053023-9b69-4e71-bbff-eb976f919a31") %>% st_transform(6347)
 nyc = nyc %>% st_buffer(0.5) %>% st_union() %>% st_sf()
 nyc = as(nyc, "Spatial")
-plot(nyc)
+
 
 # crop and mask
-a = crop(x, extent(nyc))
+a = crop(r, extent(nyc))
 xcrop = mask(a, nyc)
+plot(xcrop)
 
+
+
+ref_r = raster(x = "./L1/tree_counts_per_ha.tiff")
+# this is our reference raster (1 ha resolution)
+#values(ref_r)[!is.na(values(ref_r))] = 1
+
+
+xcrop = setExtent(x = xcrop, ext = ref_r@extent)
+
+# Resample so same resolution as tree data
+xcrop = resample(x = xcrop, y = ref_r, method = "bilinear")
+
+plot(xcrop)
+raster::compareRaster(xcrop, ref_r)
 
 # scale it
 v = values(xcrop)

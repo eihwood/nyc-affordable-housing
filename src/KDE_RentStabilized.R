@@ -22,7 +22,7 @@ data = lapply(files, FUN = read_delim, delim = '\t', col_types = cols(ZIP = col_
 #as the more or less temporary abode of individuals or families who are lodged with or without meals. 
 #This class includes hotels, lodging houses, rooming houses, boarding houses, boarding schools, 
 #furnished room houses, lodgings, club houses, and college and school dormitories.” 
-df = bind_rows(data) %>% filter(ZIP != "ZIP", STATUS1 != "MULTIPLE DWELLING B", !is.na(lat)) %>% distinct(loc, .keep_all = T) %>% dplyr::select(Address, loc, lat, lon) %>%
+df = bind_rows(data) %>% filter(ZIP != "ZIP", STATUS1 != "MULTIPLE DWELLING B", !is.na(lat), is.na(STATUS2)) %>% distinct(loc, .keep_all = T) %>% dplyr::select(Address, loc, lat, lon) %>%
   mutate(`Income Designation` = 'No Restrictions', 
   `Max Income Restriction(%AMI)` = "No Restrictions", `Occupancy Demographic` = "All Eligable", `subsidy_program_full` = "Rent Stabilization")
 
@@ -71,33 +71,36 @@ r = raster(list(x=fhat$tidy_ks$ks[[1]]$eval.points[[2]], y = fhat$tidy_ks$ks[[1]
 # set crs
 crs(r) <- CRS('+init=EPSG:6347')
 
+r_test = projectRaster(r, ref_r)
+
 ref_r = raster(x = "./L1/tree_counts_per_ha.tiff")
 # this is our reference raster (1 ha resolution)
 values(ref_r)[!is.na(values(ref_r))] = 1
 
+# crop it by nyc shape
+nyc = st_read("./Borough Boundaries/", layer = "geo_export_da053023-9b69-4e71-bbff-eb976f919a31") %>% st_transform(6347)
+nyc = nyc %>% st_buffer(0.5) %>% st_union() %>% st_sf()
+nyc = as(nyc, "Spatial")
+
+
 r = setExtent(x = r, ext = ref_r@extent)
-
-
 # Resample so same resolution as tree data
 x = resample(x = r, y = ref_r, method = "bilinear")
 
 plot(x)
 raster::compareRaster(x, ref_r)
 
-# crop it by nyc shape
-nyc = st_read("./Borough Boundaries/", layer = "geo_export_da053023-9b69-4e71-bbff-eb976f919a31") %>% st_transform(6347)
-nyc = nyc %>% st_buffer(0.5) %>% st_union() %>% st_sf()
-nyc = as(nyc, "Spatial")
-plot(nyc)
-
 # crop and mask
 a = crop(x, extent(nyc))
-xcrop = mask(a, nyc)
+x = mask(a, nyc)
+
+
+
 
 
 # scale it
-v = values(xcrop)
-x.scale = ((xcrop - min(v, na.rm = T)) / (max(v, na.rm = T) - min(v, na.rm = T)) - 0.5 ) * 2
+v = values(x)
+x.scale = ((x - min(values(x), na.rm = T)) / (max(values(x), na.rm = T) - min(values(x), na.rm = T)) - 0.5 ) * 2
 
 
 
