@@ -40,7 +40,7 @@ gridsize.y <- diff(range(X[,2]))/90
 
 # Bivariate smoothed cross validation bandwidth estimator
 # Generate a plugin estimate to use as starting values in the optimization step
-hpi.est = Hpi.diag(x=X)
+hpi.est = Hpi(x=X)
 
 # Least squares - not well behaved when there are repeated coords. 
 H = Hscv(x=X, Hstart = hpi.est, optim.fun = "nlm")
@@ -81,16 +81,22 @@ x = resample(x = r, y = ref_r, method = "bilinear")
 plot(x)
 raster::compareRaster(x, ref_r)
 
-# scale it
-v = values(x)
-x.scale = ((x - min(v)) / (max(v) - min(v)) - 0.5 ) * 2
 
-# crop it by ref raster
-xcrop = x*ref_r
+
+# crop it by nyc shape
+nyc = st_read("./Borough Boundaries/", layer = "geo_export_da053023-9b69-4e71-bbff-eb976f919a31") %>% st_transform(6347)
+nyc = nyc %>% st_buffer(0.5) %>% st_union() %>% st_sf()
+nyc = as(nyc, "Spatial")
+
+
+# crop and mask
+a = crop(x, extent(nyc))
+xcrop = mask(a, nyc)
 plot(xcrop)
 
-xcrop.scaled = x.scale*ref_r
-plot(xcrop.scaled)
+# scale it
+v = values(xcrop)
+x.scale = ((xcrop - min(v, na.rm = T)) / (max(v, na.rm = T) - min(v, na.rm = T)) - 0.5 ) * 2
 
 writeRaster(xcrop, filename = "./L1/tree_kde_dens_1ha_unscaled.tiff", overwrite = T)
-writeRaster(xcrop.scaled, filename = "./L1/tree_kde_dens_1ha_scaled.tiff", overwrite = T)
+writeRaster(x.scale, filename = "./L1/tree_kde_dens_1ha_scaled.tiff", overwrite = T)

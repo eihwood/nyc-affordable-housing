@@ -34,7 +34,7 @@ Hscv_diag = Hscv.diag(x=X, Hstart = hpi.est, optim.fun = "nlm")
 
 
 # TIDY KDE + plot
-fhat = st_kde(x = df_geo, H = H, binned = FALSE, xmin = c(extnyc[1], extnyc[3]), xmax = c(extnyc[2], extnyc[4]))
+fhat = ks::kde(x = X, H = H, binned = FALSE, xmin = c(extnyc[1], extnyc[3]), xmax = c(extnyc[2], extnyc[4]))
 
 gs1 <- ggplot(fhat) + geom_sf(data=df_geo, fill=NA, alpha = 0.05) +
   ggthemes::theme_map()
@@ -57,7 +57,19 @@ plot(r)
 # set crs
 crs(r) <- CRS('+init=EPSG:6347')
 
+im.kde =image2Grid(list(x = fhat$eval.points[[1]], 
+                        y = fhat$eval.points[[2]], 
+                        z = fhat$estimate))
 
+image(fhat$eval.points[[1]], fhat$eval.points[[2]], fhat$estimate)
+contour(im.kde, add = TRUE)
+
+#convert into raster
+r <- raster(spkde)
+r.cont <- rasterToContour(r,levels=contourLevels(fhat, prob = c(0.25, 0.5, 0.75)))
+plot(r.cont)
+
+rgdal::writeOGR(r.cont, dsn = "./L1/", layer = "subsidized_kde_contours_revised.shp", driver = "ESRI Shapefile")
 
 # crop it by nyc shape
 nyc = st_read("./Borough Boundaries/", layer = "geo_export_da053023-9b69-4e71-bbff-eb976f919a31") %>% st_transform(6347)
